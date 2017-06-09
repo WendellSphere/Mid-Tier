@@ -22,11 +22,7 @@ namespace AppName.Web.Controllers.Api
             _errorLogService = errorLogService;
             _userService = userService;
         }
-
-       
-
-
-
+        
         [Route, HttpPost]
         public HttpResponseMessage Add(ErrorLogAddRequest model)
         {
@@ -46,18 +42,6 @@ namespace AppName.Web.Controllers.Api
 
             return Request.CreateResponse(HttpStatusCode.OK, response);
         }
-
-        //[Route("edit/{id:int}"), HttpPut]
-        //HttpResponseMessage Update(ErrorLogUpdateRequest model, int id)
-        //{
-        //    if(!ModelState.IsValid)
-        //    {
-        //        return Request.CreateErrorResponse(HttpStatusCode.BadRequest, ModelState);
-        //    }
-        //    SuccessResponse response = new SuccessResponse();
-        //    _errorLogService.Update(model, id);
-        //    return Request.CreateResponse(HttpStatusCode.OK, response);
-        //}
 
         [Route("get/{id:int}"), HttpGet]
         public HttpResponseMessage Get(int id)
