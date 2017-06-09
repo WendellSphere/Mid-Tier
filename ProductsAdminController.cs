@@ -39,19 +39,7 @@ namespace AppName.Web.Controllers
                 return OwnerType.Product;
             }
         }
-
-        //public override string EntityId
-        //{
-        //    get
-        //    {
-        //        return _entityId;
-        //    }
-        //}
-
-
-
-        // GET: Product
-
+        
         [Route]
         public ActionResult list()
         {
@@ -66,7 +54,7 @@ namespace AppName.Web.Controllers
             return View(vm);
         }
 
-        //NO LONGER BEING USED
+       
         [Route("list")]
         public ActionResult Index()
         {
