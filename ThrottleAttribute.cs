@@ -16,15 +16,17 @@ public class ThrottleAttribute : ActionFilterAttribute
     {
         private string name = null;
 
-        private int seconds = -1;
+        private int miliSeconds = -1;
+
+        private readonly CustomLogger _logger = (CustomLogger)LogManager.GetCurrentClassLogger(typeof(CustomLogger));
 
         /// <summary>
         /// The number of seconds clients must wait before executing this decorated route again.
         /// </summary>
-        public int Seconds
+        public int MiliSeconds
         {
-            get { return seconds; }
-            set{ seconds = value; }
+            get { return miliSeconds; }
+            set{ miliSeconds = value; }
         }
 
         /// <summary>
@@ -37,33 +39,36 @@ public class ThrottleAttribute : ActionFilterAttribute
 
         public override void OnActionExecuting(HttpActionContext actionContext)
         {
-            if(DateTime.Now.Hour == Utils.GetConfigValue("HourBatchIsRunning"))
-            {
-                Execute(actionContext, true);
-            }
-
-            SetName(actionContext);
-
-            seconds = Utils.GetConfigValue(name + "-SecondInterval");
-
-            if (seconds <= 0)
-            {
-                    seconds = Utils.GetConfigValue("Default-SecondInterval");
-
-                    if (seconds <= 0)
-                        return;
-            }
 
             ApiRequestBase request = actionContext.ActionArguments["request"] as ApiRequestBase;
 
             string apiKey = request.sAPIKey;
 
+            SetName(actionContext);
+
             string key = string.Concat(name, "-", apiKey);
 
-            ExecuteOrNot(actionContext, apiKey, key);
+            if (DateTime.Now.Hour == Utils.GetConfigValue("HourBatchIsRunning"))
+            {
+                Execute(actionContext, request, true);
+            }
+
+            miliSeconds = Utils.GetConfigValue(name + "-Interval");
+
+            if (miliSeconds <= 0)
+            {
+                miliSeconds = Utils.GetConfigValue("Default-Interval");
+
+                    if (miliSeconds <= 0)
+                        return;
+            }
+
+            ExecuteOrNot(actionContext, request, apiKey, key);
         }
 
-        private void ExecuteOrNot(HttpActionContext actionContext, string apiKey, string key, bool allowExecute = false)
+        #region Helper Methods
+
+        private void ExecuteOrNot(HttpActionContext actionContext, ApiRequestBase request, string apiKey, string key, bool allowExecute = false)
         {
 
             if (HttpRuntime.Cache[key] == null)
@@ -71,7 +76,7 @@ public class ThrottleAttribute : ActionFilterAttribute
                 HttpRuntime.Cache.Add(key,
                     true,
                     null, // no dependencies
-                    DateTime.Now.AddSeconds(Seconds), // absolute expiration
+                    DateTime.Now.AddMilliseconds(miliSeconds), // absolute expiration
                     Cache.NoSlidingExpiration,
                     CacheItemPriority.Low,
                     null); // no callback
@@ -81,23 +86,36 @@ public class ThrottleAttribute : ActionFilterAttribute
 
             if (!allowExecute)
             {
-                Execute(actionContext);
+                Execute(actionContext, request);
             }
         }
 
-        private void Execute(HttpActionContext actionContext, bool isTotalShutdown = false)
+        private void Execute(HttpActionContext actionContext, ApiRequestBase request, bool isTotalShutdown = false)
         {
-            
+
             if (string.IsNullOrEmpty(Message) && !isTotalShutdown)
             {
-                Message = string.Format("You may only perform this action every {0} second(s).", seconds);
+                Message = string.Format("You may only perform this action every {0} milisecond(s).", miliSeconds);
             }
             string shutDownMessage = string.Format("API is temporarily shutdown, please try again later");
+
+            LogThrottle(request, isTotalShutdown, shutDownMessage);
 
             actionContext.Response = actionContext.Request.CreateResponse(
                 HttpStatusCode.Conflict,
                 isTotalShutdown ? shutDownMessage : Message
             );
+        }
+
+        private void LogThrottle(ApiRequestBase request, bool isTotalShutdown, string shutDownMessage)
+        {
+            int auditId = 0;
+
+            auditId = this.InsertAudit(request.sAPIKey, request.iTradingPartnerID, request.sEmailAddress, name, auditId);
+
+            _logger.SetAuditId(auditId);
+
+            _logger.Error(name + " - " + (isTotalShutdown ? shutDownMessage : Message));
         }
 
         private void SetName(HttpActionContext actionContext)
@@ -110,5 +128,7 @@ public class ThrottleAttribute : ActionFilterAttribute
             }
            
         }
+
+        #endregion
     }
 }    
